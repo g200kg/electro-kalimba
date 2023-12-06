@@ -19,9 +19,10 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 
-#include "neopix.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include <stdio.h>
+#include <math.h>
 
 /* USER CODE END Includes */
 
@@ -41,6 +42,14 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
+ADC_HandleTypeDef hadc1;
+DMA_HandleTypeDef hdma_adc1;
+
+DAC_HandleTypeDef hdac1;
+DMA_HandleTypeDef hdma_dac1_ch1;
+
+TIM_HandleTypeDef htim6;
+TIM_HandleTypeDef htim7;
 TIM_HandleTypeDef htim17;
 DMA_HandleTypeDef hdma_tim17_ch1_up;
 
@@ -56,12 +65,571 @@ static void MX_GPIO_Init(void);
 static void MX_DMA_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_TIM17_Init(void);
+static void MX_ADC1_Init(void);
+static void MX_DAC1_Init(void);
+static void MX_TIM6_Init(void);
+static void MX_TIM7_Init(void);
 /* USER CODE BEGIN PFP */
+
 
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+
+//###### DAC1 Out1 ######
+// Use DAC1-Out1 for audio output
+//  Driven by DMA1-Ch3 trig TIM6 DMA Circular
+
+#define OUTBUFFLEN (2048)
+#define OUTBUFFLENHALF (OUTBUFFLEN / 2)
+
+uint16_t outBuff[OUTBUFFLEN];		// OutputBuffer for DAC
+int outBuffAvail0 = 1;				// Buffer First half ready
+int outBuffAvail1 = 1;				// Buffer Latter half ready
+
+
+//###### ADC1 Ch1,Ch2,Ch4 ######
+// Read 3 pots analog value ADC1-Ch1, ADC1-Ch2, ADC-Ch4 by DMA1-Ch1 Circular
+
+uint16_t adcVal[3] = {
+		0, 0, 0,
+};
+
+//###### NeoPixel ######
+// NeoPixel LED Driven by TIM17-Ch1 PWM, duty controlled by DMA1-Ch7 (neoPixelBuff)
+//
+#define NEOPIXELNUM 4
+#define NEOPIXELPREAMBLE 50
+#define NEOPIXELPOSTAMBLE 10
+#define NEOPIXELBUFFLEN (24 * NEOPIXELNUM + NEOPIXELPREAMBLE + NEOPIXELPOSTAMBLE)
+
+// NeoPixel duty definition
+#define NEOPIXBIT0	12
+#define NEOPIXBIT1	26
+int tim17prescaler = 1;
+
+// PWM duty control value array
+uint8_t neoPixelBuff[NEOPIXELBUFFLEN] = {
+		0,0,0,0,0,0,0,0,0,0,	// preamble
+		0,0,0,0,0,0,0,0,0,0,
+		0,0,0,0,0,0,0,0,0,0,
+		0,0,0,0,0,0,0,0,0,0,
+		0,0,0,0,0,0,0,0,0,0,
+
+		0,0,0,0,0,0,0,0,0,0,	// LED 0
+		0,0,0,0,0,0,0,0,0,0,
+		0,0,0,0,
+
+		0,0,0,0,0,0,0,0,0,0,	// LED 1
+		0,0,0,0,0,0,0,0,0,0,
+		0,0,0,0,
+
+		0,0,0,0,0,0,0,0,0,0,	// LED 2
+		0,0,0,0,0,0,0,0,0,0,
+		0,0,0,0,
+
+		0,0,0,0,0,0,0,0,0,0,	// LED 3
+		0,0,0,0,0,0,0,0,0,0,
+		0,0,0,0,
+
+		0,0,0,0,0,0,0,0,0,0,	// postamble
+};
+uint8_t neoPixelBuffNone[16] = {
+		0, 0, 0, 0, 0, 0, 0, 0,
+		0, 0, 0, 0, 0, 0, 0, 0,
+};
+
+//###### Keys #####
+#define VOICEMAX 4
+
+int keyActive[VOICEMAX];
+int keyActiveQue[VOICEMAX];
+
+// KO 0-2 = PA11, PA8, PF1
+// KI 0-5 = GPIO PortB bit => xx5432x10
+int keyOut, keyBits, keyBitsOld1, keyBitsOld2;
+int keyIn, keyInOld;
+
+// Read KI 0-5 bits
+// EK001 PB x5432x10
+#define KEYINBITS ((GPIOB->IDR & 0b11) | ((GPIOB->IDR >> 1) & 0b00111100))
+// EK002 PB 5432xx10
+//#define KEYINBITS ((GPIOB->IDR & 0b11) | ((GPIOB->IDR >> 2) & 0b00111100))
+
+// KO 0-2 port & pin
+// EK001
+#define KEYOUT0_PORT GPIOF
+#define KEYOUT1_PORT GPIOA
+#define KEYOUT2_PORT GPIOA
+#define KEYOUT0_PIN GPIO_PIN_1
+#define KEYOUT1_PIN GPIO_PIN_8
+#define KEYOUT2_PIN GPIO_PIN_11
+//EK002
+//#define KEYOUT0_PORT GPIOA
+//#define KEYOUT1_PORT GPIOA
+//#define KEYOUT2_PORT GPIOA
+//#define KEYOUT0_PIN GPIO_PIN_12
+//#define KEYOUT1_PIN GPIO_PIN_8
+//#define KEYOUT2_PIN GPIO_PIN_11
+
+
+//###### Osc ######
+
+#define OSCFSORIG (24000)
+int oscFsTune = OSCFSORIG;
+int oscDelta[17];
+int oscPhaseActive[VOICEMAX];
+int envPhaseActive[VOICEMAX];
+int oscMix1, oscMix2;
+int envPhaseRate;
+
+// Old output for detect zero cross
+int datOld[VOICEMAX];
+
+// Buzz Osc
+int modPhase = 0;
+int modDelta = 2555;
+int modType = 0;
+
+// NeoPixel status
+int ledOut[3];
+
+// Frequencies for each keys
+#define OCTAVE 3
+
+int oscFreq[17] = {
+		(int)(1174.6590716696303 * (0x02000 << OCTAVE)),	//D5
+		(int)(987.7666025122483  * (0x02000 << OCTAVE)),	//B4
+		(int)(783.9908719634986  * (0x02000 << OCTAVE)), 	//G4
+		(int)(659.2551138257398  * (0x02000 << OCTAVE)),	//E4
+		(int)(523.2511306011972  * (0x02000 << OCTAVE)),	//C4
+		(int)(440.0              * (0x02000 << OCTAVE)),	//A3
+		(int)(349.2282314330039  * (0x02000 << OCTAVE)),	//F3
+		(int)(293.6647679174076  * (0x02000 << OCTAVE)),	//D3
+		(int)(261.6255653005986  * (0x02000 << OCTAVE)),	//C3
+		(int)(329.6275569128699  * (0x02000 << OCTAVE)),	//E3
+		(int)(391.99543598174927 * (0x02000 << OCTAVE)),	//G3
+		(int)(493.8833012561241  * (0x02000 << OCTAVE)),	//B3
+		(int)(587.3295358348151  * (0x02000 << OCTAVE)),	//D4
+		(int)(698.4564628660078  * (0x02000 << OCTAVE)),	//F4
+		(int)(880.0              * (0x02000 << OCTAVE)),	//A4
+		(int)(1046.5022612023945 * (0x02000 << OCTAVE)),	//C5
+		(int)(1318.5102276514797 * (0x02000 << OCTAVE)), 	//E5
+};
+
+// Waveforms
+int waveTabA[] = {
+		0,
+		195,
+		383,
+		556,
+		707,
+		831,
+		924,
+		981,
+		1000,
+		981,
+		924,
+		831,
+		707,
+		556,
+		383,
+		195,
+		0,
+		-195,
+		-383,
+		-556,
+		-707,
+		-831,
+		-924,
+		-981,
+		-1000,
+		-981,
+		-924,
+		-831,
+		-707,
+		-556,
+		-383,
+		-195,
+		0,
+};
+int waveTabB[] = {
+		0,
+		24,
+		125,
+		212,
+		220,
+		260,
+		378,
+		446,
+		434,
+		498,
+		644,
+		676,
+		620,
+		752,
+		991,
+		800,
+		0,
+		-800,
+		-991,
+		-752,
+		-620,
+		-676,
+		-644,
+		-498,
+		-434,
+		-446,
+		-378,
+		-260,
+		-220,
+		-212,
+		-125,
+		-24,
+		0,
+};
+int waveTabC[] = {
+		0,
+		941,
+		672,
+		-342,
+		-964,
+		-872,
+		-460,
+		-120,
+		0,
+		-120,
+		-460,
+		-872,
+		-964,
+		-342,
+		672,
+		941,
+		-941,
+		-672,
+		342,
+		964,
+		872,
+		460,
+		120,
+		0,
+		120,
+		460,
+		872,
+		964,
+		342,
+		-672,
+		-941,
+		0,
+		0,
+};
+// Current waveform (The output will be mix of waveTab1 and waveTab2)
+int *waveTab1 = waveTabA;
+int *waveTab2 = waveTabB;
+
+// Envelope curve
+int envTab[] = {
+		1024,
+		870,
+		740,
+		629,
+		535,
+		454,
+		386,
+		328,
+		279,
+		237,
+		202,
+		171,
+		146,
+		124,
+		105,
+		89,
+		76,
+		65,
+		55,
+		47,
+		40,
+		34,
+		29,
+		24,
+		21,
+		18,
+		15,
+		13,
+		11,
+		9,
+		8,
+		7,
+		6,
+		5,
+		4,
+		3,
+		3,
+		3,
+		2,
+		0
+};
+#define ENVTABLEN (sizeof envTab / sizeof envTab[0])
+#define ENVPHASEMAX ((ENVTABLEN -1) << 20)
+
+int key2LedOut[] = {
+		0,
+		0,
+		0,
+		1,
+		1,
+		1,
+		2,
+		2,
+		2,
+		2,
+		2,
+		1,
+		1,
+		1,
+		0,
+		0,
+		0,
+};
+
+// Select the least important voice
+int disposeVoice(int key) {
+	int v = 0;
+	int envMax = 0;
+	for(int i=0; i < VOICEMAX; ++i) {
+		if(envPhaseActive[i] >= ENVPHASEMAX)
+			return i;
+		if(keyActive[i] == key)
+			return i;
+		if(envPhaseActive[i] > envMax) {
+			envMax = envPhaseActive[i];
+			v = i;
+		}
+	}
+	return v;
+}
+// Assign new voice
+void assignVoice(int key) {
+	printf("key: %d\n",key);
+	int voice = disposeVoice(key);
+	if(envPhaseActive[voice] < ENVPHASEMAX) {
+		keyActiveQue[voice] = key;
+	}
+	else {
+		oscPhaseActive[voice] = 0;
+		keyActive[voice] = key;
+		envPhaseActive[voice] = 0;
+	}
+}
+// Setup NeoPix N to specified BRG color
+void neoPixelSetCol(int n, int brg) {
+	int offset = NEOPIXELPREAMBLE + (n * 24);
+	for(int i = 0; i < 24; ++i, brg <<= 1) {
+		if(brg & 0x800000)
+			neoPixelBuff[offset + i] = NEOPIXBIT1;
+		else
+			neoPixelBuff[offset + i] = NEOPIXBIT0;
+	}
+}
+// Scan keys
+void scanKeys() {
+	keyBits = (keyBits << 6) | KEYINBITS;
+	neoPixelSetCol(keyOut, (keyBits & 0b111111) ? 0x000010:0);
+	if(--keyOut < 0) {
+		keyOut = 2;
+		if(keyBits == keyBitsOld1 && keyBitsOld1 == keyBitsOld2) {
+			keyInOld = keyIn;
+			keyIn = keyBits;
+			int xor = (keyIn ^ keyInOld) & keyIn;
+			for(int n = 0;n < 17; ++n, xor >>= 1) {
+				if(xor & 1) {
+					assignVoice(n);
+				}
+			}
+		}
+		keyBitsOld2 = keyBitsOld1;
+		keyBitsOld1 = keyBits;
+		keyBits = 0;
+	}
+    switch(keyOut) {
+    case 0:
+    	HAL_GPIO_WritePin(KEYOUT1_PORT, KEYOUT1_PIN, GPIO_PIN_RESET);
+    	HAL_GPIO_WritePin(KEYOUT0_PORT, KEYOUT0_PIN, GPIO_PIN_SET);
+    	break;
+    case 1:
+    	HAL_GPIO_WritePin(KEYOUT2_PORT, KEYOUT2_PIN, GPIO_PIN_RESET);
+    	HAL_GPIO_WritePin(KEYOUT1_PORT, KEYOUT1_PIN, GPIO_PIN_SET);
+    	break;
+    case 2:
+    	HAL_GPIO_WritePin(KEYOUT0_PORT, KEYOUT0_PIN, GPIO_PIN_RESET);
+    	HAL_GPIO_WritePin(KEYOUT2_PORT, KEYOUT2_PIN, GPIO_PIN_SET);
+    	break;
+    }
+}
+// Edit pot parameters
+void editSetup() {
+  static int editstage=0;
+  if(++editstage > 10) {
+	  editstage = 0;
+  }
+  switch(editstage) {
+  case 0:
+	  envPhaseRate = 0x100000 / (adcVal[0] + 0x100);
+	  break;
+  case 1:
+//	  printf("%d\n", adcVal[1]);
+	  oscMix2 = ((adcVal[1] & 1023) >> 2);
+	  oscMix1 = 256 - oscMix2;
+	  if(adcVal[1] >= 3072) {
+		  modType = 2;
+		  waveTab1 = waveTabC;
+		  waveTab2 = waveTabC;
+	  }
+	  else if(adcVal[1] >= 2048) {
+		  modType = 1;
+		  waveTab1 = waveTabC;
+		  waveTab2 = waveTabC;
+	  }
+	  else if(adcVal[1] >= 1024) {
+		  modType = 0;
+		  waveTab1 = waveTabB;
+		  waveTab2 = waveTabC;
+	  }
+	  else {
+		  modType = 0;
+		  waveTab1 = waveTabA;
+		  waveTab2 = waveTabB;
+	  }
+	  break;
+  case 2:
+	  int detune = (adcVal[2] & 0xfff) - 2048;
+	  oscFsTune = OSCFSORIG - detune;
+	  break;
+  }
+}
+// Create the timings for keyscan / editparameters
+void gpioInterval() {
+	// 1kHz Interval
+	static int cntKeyScan = 0;
+	static int cntEditParam = 0;
+	if(++cntKeyScan > 1) {
+		cntKeyScan = 0;
+		scanKeys();
+	}
+	else if(++cntEditParam >= 8) {
+    	cntEditParam = 0;
+    	editSetup();
+    }
+}
+// Generate output signals
+//  fill half the buffer with the signals from offset
+int wavOutMax;
+void generate(int offset) {
+	int wavOut;
+	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_12, GPIO_PIN_SET);
+	ledOut[0] = ledOut[1] = ledOut[2] = 0;
+	wavOutMax = 0;
+	for(int j = 0; j < OUTBUFFLENHALF; ++j) {
+		wavOut = 0x8000;
+		for(int i = 0; i < VOICEMAX; ++i) {
+			if(envPhaseActive[i] < ENVPHASEMAX) {
+				int ph = oscPhaseActive[i];
+				int frac = (ph >> 7) & 0xf;
+				int idx = ph >> 11;
+				int idxNext = idx + 1;
+				int w1 = waveTab1[idx] + (((waveTab1[idxNext] - waveTab1[idx]) * frac) >> 4);
+				int w2;
+				switch(modType) {
+				case 2:
+					modPhase = (modPhase + modDelta) & 0xffff;
+					int s = waveTab1[modPhase>>11];
+					w2 = (w1 * (s>>2)) >> 8;
+					w1 = (w1 * (modPhase>>8)) >> 8;
+					break;
+				case 1:
+					modPhase = (modPhase + modDelta) & 0xffff;
+					w2 = (w1 * (modPhase>>8)) >> 8;
+					break;
+				case 0:
+					w2 = waveTab2[idx] + (((waveTab2[idxNext] - waveTab2[idx]) * frac) >> 4);
+					break;
+				}
+				int w = w1 + (((w2 - w1) * oscMix2) >> 8);
+				int envIdx = (envPhaseActive[i] >> 20);
+				int envIdxNext = envIdx + 1;
+				int envFrac = (envPhaseActive[i] >> 16) & 0xf;
+				int envVal = envTab[envIdx];
+				envVal = envVal + ((envTab[envIdxNext] - envVal) * envFrac >> 4);
+				int dat = ((w * (envVal>>2)) >> 6);
+				int ledidx = key2LedOut[keyActive[i]];
+				if(envVal > ledOut[ledidx])
+					ledOut[ledidx] = envVal;
+				wavOut += dat;
+				if((oscPhaseActive[i] += oscDelta[keyActive[i]]) >= 0x10000) {
+					oscPhaseActive[i] -= 0x10000;
+				}
+				if(keyActiveQue[i] >= 0 && dat >= 0 && datOld[i] < 0) {
+					keyActive[i] = keyActiveQue[i];
+					envPhaseActive[i] = 0;
+					keyActiveQue[i] = -1;
+				}
+				datOld[i] = dat;
+				envPhaseActive[i] += envPhaseRate;
+			}
+		}
+		if(wavOut >= 0xf000)
+			wavOut = 0xf000;
+		if(wavOut < 0x1000)
+			wavOut = 0x1000;
+		outBuff[offset + j] = wavOut;
+		if(wavOut > wavOutMax)
+			wavOutMax = wavOut;
+		if(offset)
+			outBuffAvail1 = 1;
+		else
+			outBuffAvail0 = 1;
+	}
+	printf("%d\n",wavOutMax);
+	for(int key = 0; key < 17; ++key)
+		oscDelta[key] = oscFreq[key] / oscFsTune;
+	neoPixelSetCol(3, ((ledOut[1]<<10)&0x0f0000) | ((ledOut[2]<<2)&0x000f00) | (ledOut[0] >> 3));
+	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_12, GPIO_PIN_RESET);
+
+}
+
+//###### Callback #######################
+
+//###### TIM17 callback
+void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim) {
+    if(htim->Instance == TIM17) {
+		if(tim17prescaler == 1) {
+			__HAL_TIM_SET_PRESCALER(htim, tim17prescaler = 1000);
+			HAL_TIM_PWM_Start_DMA(&htim17,TIM_CHANNEL_1,(uint32_t*)neoPixelBuffNone, sizeof neoPixelBuffNone);
+		}
+		else {
+			__HAL_TIM_SET_PRESCALER(htim, tim17prescaler = 1);
+			HAL_TIM_PWM_Start_DMA(&htim17,TIM_CHANNEL_1,(uint32_t*)neoPixelBuff, sizeof neoPixelBuff);
+		}
+	}
+}
+//###### TIM7 callback
+void  HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
+	if(htim->Instance == TIM7) {
+	  gpioInterval();
+	}
+}
+//###### DAC callback End of buffer
+void HAL_DAC_ConvCpltCallbackCh1(DAC_HandleTypeDef *hdac) {
+	outBuffAvail1 = 0;
+}
+//###### DAC callback End of half buffer
+void HAL_DAC_ConvHalfCpltCallbackCh1(DAC_HandleTypeDef *hdac) {
+	outBuffAvail0 = 0;
+
+}
+//###### for printf debug ######
 int _write(int file, char *ptr, int len)
 {
   HAL_UART_Transmit(&huart2,(uint8_t *)ptr,len,10);
@@ -86,7 +654,13 @@ int main(void)
   HAL_Init();
 
   /* USER CODE BEGIN Init */
-
+  setbuf(stdout, NULL);
+  for(int i = 0; i < OUTBUFFLEN; ++i) {
+	  outBuff[i] = 0x8000;
+  }
+  for(int i = 0; i < VOICEMAX; ++i) {
+	  envPhaseActive[i] = (ENVTABLEN << 20);
+  }
   /* USER CODE END Init */
 
   /* Configure the system clock */
@@ -101,10 +675,33 @@ int main(void)
   MX_DMA_Init();
   MX_USART2_UART_Init();
   MX_TIM17_Init();
+  MX_ADC1_Init();
+  MX_DAC1_Init();
+  MX_TIM6_Init();
+  MX_TIM7_Init();
   /* USER CODE BEGIN 2 */
 
-  NeoPix_Init();
-  NeoPix_SetColor(1, 0x201040);
+  HAL_DAC_Start(&hdac1, DAC_CHANNEL_1);
+  HAL_ADC_Start_DMA(&hadc1, (uint32_t *)adcVal, 3);
+  HAL_TIM_Base_Start_IT(&htim6);
+  HAL_TIM_Base_Start_IT(&htim7);
+  HAL_TIM_PWM_Start_DMA(&htim17,TIM_CHANNEL_1,(uint32_t*)neoPixelBuff, sizeof neoPixelBuff);
+
+  HAL_GPIO_WritePin(GPIOF, GPIO_PIN_1, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_11, GPIO_PIN_RESET);
+
+  for(int i = 0; i < 17; ++i) {
+	  oscDelta[i] = oscFreq[i] / OSCFSORIG;
+  }
+  for(int i = 0; i < VOICEMAX; ++i) {
+	  keyActive[i] = keyActiveQue[i] = -1;
+  }
+  neoPixelSetCol(3, 0x101010);
+  HAL_DAC_Start_DMA(&hdac1, DAC_CHANNEL_1, (uint32_t*)outBuff, OUTBUFFLEN, DAC_ALIGN_12B_L);
+
+  printf("STM32 Initialized.\n");
+
 
   /* USER CODE END 2 */
 
@@ -115,6 +712,11 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+	  // Fill output buffer
+	  if(outBuffAvail0 == 0)
+		  generate(0);
+	  if(outBuffAvail1 == 0)
+		  generate(OUTBUFFLENHALF);
   }
   /* USER CODE END 3 */
 }
@@ -127,6 +729,7 @@ void SystemClock_Config(void)
 {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
+  RCC_PeriphCLKInitTypeDef PeriphClkInit = {0};
 
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
@@ -155,6 +758,212 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
+  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_ADC12;
+  PeriphClkInit.Adc12ClockSelection = RCC_ADC12PLLCLK_DIV1;
+  if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
+  {
+    Error_Handler();
+  }
+}
+
+/**
+  * @brief ADC1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_ADC1_Init(void)
+{
+
+  /* USER CODE BEGIN ADC1_Init 0 */
+
+  /* USER CODE END ADC1_Init 0 */
+
+  ADC_MultiModeTypeDef multimode = {0};
+  ADC_ChannelConfTypeDef sConfig = {0};
+
+  /* USER CODE BEGIN ADC1_Init 1 */
+
+  /* USER CODE END ADC1_Init 1 */
+
+  /** Common config
+  */
+  hadc1.Instance = ADC1;
+  hadc1.Init.ClockPrescaler = ADC_CLOCK_ASYNC_DIV1;
+  hadc1.Init.Resolution = ADC_RESOLUTION_12B;
+  hadc1.Init.ScanConvMode = ADC_SCAN_ENABLE;
+  hadc1.Init.ContinuousConvMode = ENABLE;
+  hadc1.Init.DiscontinuousConvMode = DISABLE;
+  hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
+  hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
+  hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
+  hadc1.Init.NbrOfConversion = 3;
+  hadc1.Init.DMAContinuousRequests = ENABLE;
+  hadc1.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
+  hadc1.Init.LowPowerAutoWait = DISABLE;
+  hadc1.Init.Overrun = ADC_OVR_DATA_OVERWRITTEN;
+  if (HAL_ADC_Init(&hadc1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Configure the ADC multi-mode
+  */
+  multimode.Mode = ADC_MODE_INDEPENDENT;
+  if (HAL_ADCEx_MultiModeConfigChannel(&hadc1, &multimode) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Configure Regular Channel
+  */
+  sConfig.Channel = ADC_CHANNEL_1;
+  sConfig.Rank = ADC_REGULAR_RANK_1;
+  sConfig.SingleDiff = ADC_SINGLE_ENDED;
+  sConfig.SamplingTime = ADC_SAMPLETIME_601CYCLES_5;
+  sConfig.OffsetNumber = ADC_OFFSET_NONE;
+  sConfig.Offset = 0;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Configure Regular Channel
+  */
+  sConfig.Channel = ADC_CHANNEL_2;
+  sConfig.Rank = ADC_REGULAR_RANK_2;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Configure Regular Channel
+  */
+  sConfig.Channel = ADC_CHANNEL_4;
+  sConfig.Rank = ADC_REGULAR_RANK_3;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN ADC1_Init 2 */
+
+  /* USER CODE END ADC1_Init 2 */
+
+}
+
+/**
+  * @brief DAC1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_DAC1_Init(void)
+{
+
+  /* USER CODE BEGIN DAC1_Init 0 */
+
+  /* USER CODE END DAC1_Init 0 */
+
+  DAC_ChannelConfTypeDef sConfig = {0};
+
+  /* USER CODE BEGIN DAC1_Init 1 */
+
+  /* USER CODE END DAC1_Init 1 */
+
+  /** DAC Initialization
+  */
+  hdac1.Instance = DAC1;
+  if (HAL_DAC_Init(&hdac1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** DAC channel OUT1 config
+  */
+  sConfig.DAC_Trigger = DAC_TRIGGER_T6_TRGO;
+  sConfig.DAC_OutputBuffer = DAC_OUTPUTBUFFER_ENABLE;
+  if (HAL_DAC_ConfigChannel(&hdac1, &sConfig, DAC_CHANNEL_1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN DAC1_Init 2 */
+
+  /* USER CODE END DAC1_Init 2 */
+
+}
+
+/**
+  * @brief TIM6 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM6_Init(void)
+{
+
+  /* USER CODE BEGIN TIM6_Init 0 */
+
+  /* USER CODE END TIM6_Init 0 */
+
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM6_Init 1 */
+
+  /* USER CODE END TIM6_Init 1 */
+  htim6.Instance = TIM6;
+  htim6.Init.Prescaler = 0;
+  htim6.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim6.Init.Period = 2666;
+  htim6.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
+  if (HAL_TIM_Base_Init(&htim6) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_UPDATE;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim6, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM6_Init 2 */
+
+  /* USER CODE END TIM6_Init 2 */
+
+}
+
+/**
+  * @brief TIM7 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM7_Init(void)
+{
+
+  /* USER CODE BEGIN TIM7_Init 0 */
+
+  /* USER CODE END TIM7_Init 0 */
+
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM7_Init 1 */
+
+  /* USER CODE END TIM7_Init 1 */
+  htim7.Instance = TIM7;
+  htim7.Init.Prescaler = 64;
+  htim7.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim7.Init.Period = 1000;
+  htim7.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
+  if (HAL_TIM_Base_Init(&htim7) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim7, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM7_Init 2 */
+
+  /* USER CODE END TIM7_Init 2 */
+
 }
 
 /**
@@ -268,6 +1077,12 @@ static void MX_DMA_Init(void)
   /* DMA1_Channel1_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Channel1_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(DMA1_Channel1_IRQn);
+  /* DMA1_Channel3_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Channel3_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel3_IRQn);
+  /* DMA1_Channel7_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Channel7_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel7_IRQn);
 
 }
 
@@ -278,19 +1093,48 @@ static void MX_DMA_Init(void)
   */
 static void MX_GPIO_Init(void)
 {
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
 /* USER CODE BEGIN MX_GPIO_Init_1 */
 /* USER CODE END MX_GPIO_Init_1 */
 
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOF_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
+  __HAL_RCC_GPIOB_CLK_ENABLE();
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOF, GPIO_PIN_1, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8|GPIO_PIN_11|GPIO_PIN_12, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin : PF1 */
+  GPIO_InitStruct.Pin = GPIO_PIN_1;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOF, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : PB0 PB1 PB3 PB4
+                           PB5 PB6 */
+  GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_3|GPIO_PIN_4
+                          |GPIO_PIN_5|GPIO_PIN_6;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : PA8 PA11 PA12 */
+  GPIO_InitStruct.Pin = GPIO_PIN_8|GPIO_PIN_11|GPIO_PIN_12;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
 /* USER CODE BEGIN MX_GPIO_Init_2 */
 /* USER CODE END MX_GPIO_Init_2 */
 }
 
 /* USER CODE BEGIN 4 */
-
 /* USER CODE END 4 */
 
 /**
