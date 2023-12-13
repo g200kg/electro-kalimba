@@ -1,83 +1,31 @@
-#KiCad
+# Common
+work*/
+Test*/
+*.xlsx
+*.log
+
+# Blender
 *.blend1
+
+# KiCad
 *.kicad_pcb-bak
 *.kicad_sch-bak
 *.kicad_prl
-*.lib
 fp-info-cache
 *-backups/
 Gerber/
-Test*/
-_autosave-*
-*.log
-*.xlsx
-*.project
-*.cproject
-*.mxproject
-/STM32CubeIDE/workspace_1.13.2/.metadata/
-/STM32CubeIDE/workspace_1.13.2/Test*/
-/STM32CubeIDE/workspace_1.13.2/EK002/Debug/
-/STM32CubeIDE/workspace_1.13.2/EK002/Drivers/
-/STM32CubeIDE/workspace_1.13.2/EK002/Core/Inc/
-/STM32CubeIDE/workspace_1.13.2/EK002/Core/Startup/
-/STM32CubeIDE/workspace_1.13.2/EK002/Core/Src/*
-!/STM32CubeIDE/workspace_1.13.2/EK002/EK002.ioc
-!/STM32CubeIDE/workspace_1.13.2/EK002/Core/Src/main.c
+
+# STM32CubeIDE
+.metadata/
+.settings/
+Debug/
+Release/
+Drivers/
+.project
+.mxproject
+.project
+.launch
 *.ld
 *.s
-*.launch
-*.xml
-*prefs
-
-# Prerequisites
-*.d
-
-# Object files
-*.o
-*.ko
-*.obj
-*.elf
-
-# Linker output
-*.ilk
-*.map
-*.exp
-
-# Precompiled Headers
-*.gch
-*.pch
-
-# Libraries
-*.lib
-*.a
-*.la
-*.lo
-
-# Shared objects (inc. Windows DLLs)
-*.dll
-*.so
-*.so.*
-*.dylib
-
-# Executables
-*.exe
-*.out
-*.app
-*.i*86
-*.x86_64
-*.hex
-
-# Debug files
-*.dSYM/
-*.su
-*.idb
-*.pdb
-
-# Kernel Module Compile Results
-*.mod*
-*.cmd
-.tmp_versions/
-modules.order
-Module.symvers
-Mkfile.old
-dkms.conf
+!/STM32CubeIDE/workspace_1.13.2/EK002/Core/Src/main.c
+!/STM32CubeIDE/workspace_1.13.2/EK002/EK002.ioc

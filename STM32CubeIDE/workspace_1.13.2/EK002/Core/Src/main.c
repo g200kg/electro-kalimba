@@ -148,8 +148,7 @@ int keyActiveQue[VOICEMAX];
 
 // KO 0-2 = PA11, PA8, PF1
 // KI 0-5 = GPIO PortB bit => xx5432x10
-int keyOut, keyBits, keyBitsOld1, keyBitsOld2;
-int keyIn, keyInOld;
+int keyOut, keyInBits, keyInBitsOld;
 
 // Read KI 0-5 bits
 // EK001 PB x5432x10
@@ -435,25 +434,20 @@ void neoPixelSetCol(int n, int brg) {
 }
 // Scan keys
 void scanKeys() {
-	keyBits = (keyBits << 6) | KEYINBITS;
-	neoPixelSetCol(keyOut, (keyBits & 0b111111) ? 0x000010:0);
+	keyInBits = (keyInBits << 6) | KEYINBITS;						// collect key status
+	neoPixelSetCol(keyOut, (keyInBits & 0b111111) ? 0x000010:0);
 	if(--keyOut < 0) {
-		keyOut = 2;
-		if(keyBits == keyBitsOld1 && keyBitsOld1 == keyBitsOld2) {
-			keyInOld = keyIn;
-			keyIn = keyBits;
-			int xor = (keyIn ^ keyInOld) & keyIn;
-			for(int n = 0;n < 17; ++n, xor >>= 1) {
-				if(xor & 1) {
-					assignVoice(n);
-				}
+		int xor = (keyInBits ^ keyInBitsOld) & keyInBits;			// xor : keyin rising edge for all keys
+		for(int n = 0;n < 17; ++n, xor >>= 1) {
+			if(xor & 1) {
+				assignVoice(n);
 			}
 		}
-		keyBitsOld2 = keyBitsOld1;
-		keyBitsOld1 = keyBits;
-		keyBits = 0;
+		keyOut = 2;
+		keyInBitsOld = keyInBits;
+		keyInBits = 0;
 	}
-    switch(keyOut) {
+    switch(keyOut) {												// next scan (KO2 => KO1 => KO0)
     case 0:
     	HAL_GPIO_WritePin(KEYOUT1_PORT, KEYOUT1_PIN, GPIO_PIN_RESET);
     	HAL_GPIO_WritePin(KEYOUT0_PORT, KEYOUT0_PIN, GPIO_PIN_SET);
@@ -468,7 +462,7 @@ void scanKeys() {
     	break;
     }
 }
-// Edit pot parameters
+// Edit with pot parameters
 void editSetup() {
   static int editstage=0;
   if(++editstage > 10) {
@@ -525,12 +519,10 @@ void gpioInterval() {
 }
 // Generate output signals
 //  fill half the buffer with the signals from offset
-int wavOutMax;
 void generate(int offset) {
 	int wavOut;
-	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_12, GPIO_PIN_SET);
+//	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_12, GPIO_PIN_SET);
 	ledOut[0] = ledOut[1] = ledOut[2] = 0;
-	wavOutMax = 0;
 	for(int j = 0; j < OUTBUFFLENHALF; ++j) {
 		wavOut = 0x8000;
 		for(int i = 0; i < VOICEMAX; ++i) {
@@ -584,18 +576,16 @@ void generate(int offset) {
 		if(wavOut < 0x1000)
 			wavOut = 0x1000;
 		outBuff[offset + j] = wavOut;
-		if(wavOut > wavOutMax)
-			wavOutMax = wavOut;
 		if(offset)
 			outBuffAvail1 = 1;
 		else
 			outBuffAvail0 = 1;
 	}
-	printf("%d\n",wavOutMax);
+//	printf("%d\n",wavOutMax);
 	for(int key = 0; key < 17; ++key)
 		oscDelta[key] = oscFreq[key] / oscFsTune;
 	neoPixelSetCol(3, ((ledOut[1]<<10)&0x0f0000) | ((ledOut[2]<<2)&0x000f00) | (ledOut[0] >> 3));
-	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_12, GPIO_PIN_RESET);
+//	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_12, GPIO_PIN_RESET);
 
 }
 
