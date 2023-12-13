@@ -106,36 +106,36 @@ STM32CubeIDE (STM32CubeMX) では STM32 のピンにペリフェラルの機能�
 
 ### Pin Assign
 
-STM32 の各ピンの使用状況は以下の通りです。
+STM32 の各ピンの使用状況は以下の通りです。幾つかのピンは Nucleo ボード内で他のピンや LED に接続されている事に注意が必要です。
 
-| Port  | STM32 Pin | Nucleo Pin | Function             |
-|:-----:|:---------:|:----------:|:--------------------:|
-| PA_0  |     6     |     A0     | ADC1 IN1 (POT2)      |
-| PA_1  |     7     |     A1     | ADC1 IN2 (POT3)      |
-| PA_2  |     8     |     A7     | -                    |
-| PA_3  |     8     |     A2     | ADC1 IN4 (POT4)      |
-| PA_4  |    10     |     A3     | DAC1 OUT1 (AudioOut) |
-| PA_5  |    11     |     A4     | -                    |
-| PA_6  |    12     |     A5     | -                    |
-| PA_7  |    13     |     A6     | TIM17 CH1            |
-| PA_8  |    18     |     D9     | KeyScan Out 1        |
-| PA_9  |    19     |   D1/TX    | -                    |
-| PA_10 |    20     |   D0/RX    | -                    |
-| PA_11 |    21     |    D10     | KeyScan Out 2        |
-| PA_12 |    22     |     D2     | KeyScan Out 0        |
-| PA_13 |    23     |      -     | (SWDIO)              |
-| PA_14 |    24     |      -     | (SWCLK)              |
-| PA_15 |    25     |      -     | -                    |
-| PB_0  |    14     |     D3     | KeyScan In 0         |
-| PB_1  |    15     |     D6     | KeyScan In 1         |
-| PB_2  |     -     |      -     | -                    |
-| PB_3  |    26     | D13(LED)   | -                    |
-| PB_4  |    27     |    D12     | KeyScan In 2         |
-| PB_5  |    28     |    D11     | KeyScan In 3         |
-| PB_6  |    29     |     D5     | KeyScan In 4         |
-| PB_7  |    30     |     D4     | KeyScan In 5         |
-| PF_0  |     2     |     D7     | -                    |
-| PF_1  |     3     |     D8     | -                    |
+| Port  | STM32 Pin | Nucleo Pin | Function in EK-002        |
+|:-----:|:---------:|:----------:|:-------------------------:|
+| PA_0  |     6     |     A0     | ADC1 IN1 (POT2)           |
+| PA_1  |     7     |     A1     | ADC1 IN2 (POT3)           |
+| PA_2  |     8     |     A7     | -                         |
+| PA_3  |     8     |     A2     | ADC1 IN4 (POT4)           |
+| PA_4  |    10     |     A3     | DAC1 OUT1 (AudioOut)      |
+| PA_5  |    11     |     A4(D5) | - (conn. to PB6 w/SB16)   |
+| PA_6  |    12     |     A5(D4) | - (conn. to PB7 w/SB18)   |
+| PA_7  |    13     |     A6     | TIM17 CH1                 |
+| PA_8  |    18     |     D9     | KeyScan Out 1             |
+| PA_9  |    19     |   D1/TX    | -                         |
+| PA_10 |    20     |   D0/RX    | -                         |
+| PA_11 |    21     |    D10     | KeyScan Out 2             |
+| PA_12 |    22     |     D2     | KeyScan Out 0             |
+| PA_13 |    23     |      -     | (SWDIO)                   |
+| PA_14 |    24     |      -     | (SWCLK)                   |
+| PA_15 |    25     |      -     | -                         |
+| PB_0  |    14     |     D3     | KeyScan In 0              |
+| PB_1  |    15     |     D6     | KeyScan In 1              |
+| PB_2  |     -     |      -     | -                         |
+| PB_3  |    26     |   D13(LED) | -                         |
+| PB_4  |    27     |    D12     | KeyScan In 2              |
+| PB_5  |    28     |    D11     | KeyScan In 3              |
+| PB_6  |    29     |   D5(A4)   | KeyScan In 4  (PA5 w/SB16)|
+| PB_7  |    30     |   D4(A5)   | KeyScan In 5  (PA6 w/SB18)|
+| PF_0  |     2     |     D7     | -                         |
+| PF_1  |     3     |     D8     | -                         |
 
 
 ### Peripheral Assign
