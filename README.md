@@ -162,10 +162,18 @@ POT1 は Volume ツマミとして回路的に固定されています。POT2-PO
 
 信号の生成は `generate()` 関数で行い、1回の呼び出しで `outBuff[]` の半分のサイズ (前半または後半) を埋めます。
 
-同時発音可能なボイス数は 4 です。押された鍵盤から空いている (または重要度の低い) ボイスに割り当てています。  
-音声信号は波形テーブル `waveTabA` - `waveTabC` の 3つのテーブルと固定周波数のリングモジュレータの信号をミックスして生成します。WaveForm (adcVal[1]) のツマミの値で次のように信号のミックスが変わります。
+同時発音可能なボイス数は 4 です。押された鍵盤から空いている (または重要度の低い) ボイスに割り当てています。 また、現在発音中のボイスに新たな音を割り当てる際にはノイズを発生させないように発音中のボイスの音量を絞ってから割り当てるようにします。
 
-waveTabA (pure Sin) => waveTabB (Sawtooth) => waveTabC (more harmonix) => ring mod
+音声信号は波形テーブル `waveTabA` - `waveTabD` の 4つのテーブルと固定周波数のリングモジュレータの信号をミックスして生成します。Waveform (adcVal[1]) のツマミの値で次のように信号のミックスが変わります。
+
+| Waveform | 説明                                            |
+|:--------:|:-----------------------------------------------:|
+|     0 => 1024 | waveTabA (Sine) => waveTabB (Sawtooth)     |
+|  1024 => 2048 | waveTabB (Sawtooth) => waveTabC (Pulse)    |
+|  2048 => 3072 | waveTabC (Pulse) => waveTabD (Square-like) |
+|  3072 => 4096 | waveTabD (Square-like) => RingMod          |
+
+waveTabA (pure Sin) => waveTabB (Sawtooth) => waveTabC (Pulse) => => waveTabD (Square-like) => ring mod
 
 各テーブルは次のような波形になっています。
 

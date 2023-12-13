@@ -147,7 +147,7 @@ int keyActive[VOICEMAX];
 int keyActiveQue[VOICEMAX];
 
 // KO 0-2 = PA12, PA8, PA11
-// KI 0-5 = GPIO PortB bit => xx5432x10
+// KI 0-5 = GPIO PortB bit => 5432xx10
 int keyOut, keyInBits, keyInBitsOld;
 
 // Read KI 0-5 bits
@@ -173,9 +173,6 @@ int oscPhaseActive[VOICEMAX];
 int envPhaseActive[VOICEMAX];
 int oscMix1, oscMix2;
 int envPhaseRate;
-
-// Old output for detect zero cross
-int datOld[VOICEMAX];
 
 // Buzz Osc
 int modPhase = 0;
@@ -209,6 +206,8 @@ int oscFreq[17] = {
 };
 
 // Waveforms
+
+/*
 int waveTabA[] = {
 		0,
 		195,
@@ -279,6 +278,45 @@ int waveTabB[] = {
 		-24,
 		0,
 };
+
+int waveTabC[] = {
+		0,
+		835,
+		1007,
+		400,
+		-471,
+		-928,
+		-706,
+		-150,
+		133,
+		-150,
+		-706,
+		-928,
+		-471,
+		400,
+		1007,
+		835,
+		0,
+		-835,
+		-1007,
+		-400,
+		471,
+		928,
+		706,
+		150,
+		-133,
+		150,
+		706,
+		928,
+		471,
+		-400,
+		-1007,
+		-835,
+		0,
+
+};
+
+
 int waveTabC[] = {
 		0,
 		941,
@@ -311,6 +349,276 @@ int waveTabC[] = {
 		342,
 		-672,
 		-941,
+		0,
+		0,
+};
+*/
+
+int waveTabA[] = {
+		0,
+		98,
+		195,
+		290,
+		383,
+		471,
+		556,
+		634,
+		707,
+		773,
+		831,
+		882,
+		924,
+		957,
+		981,
+		995,
+		1000,
+		995,
+		981,
+		957,
+		924,
+		882,
+		831,
+		773,
+		707,
+		634,
+		556,
+		471,
+		383,
+		290,
+		195,
+		98,
+		0,
+		-98,
+		-195,
+		-290,
+		-383,
+		-471,
+		-556,
+		-634,
+		-707,
+		-773,
+		-831,
+		-882,
+		-924,
+		-957,
+		-981,
+		-995,
+		-1000,
+		-995,
+		-981,
+		-957,
+		-924,
+		-882,
+		-831,
+		-773,
+		-707,
+		-634,
+		-556,
+		-471,
+		-383,
+		-290,
+		-195,
+		-98,
+		0,
+};
+int waveTabB[] = {
+		0,
+		3,
+		24,
+		67,
+		125,
+		179,
+		212,
+		221,
+		220,
+		228,
+		260,
+		315,
+		378,
+		426,
+		446,
+		442,
+		434,
+		449,
+		498,
+		573,
+		644,
+		682,
+		676,
+		642,
+		620,
+		652,
+		752,
+		888,
+		991,
+		980,
+		800,
+		452,
+		0,
+		-452,
+		-800,
+		-980,
+		-991,
+		-888,
+		-752,
+		-652,
+		-620,
+		-642,
+		-676,
+		-682,
+		-644,
+		-573,
+		-498,
+		-449,
+		-434,
+		-442,
+		-446,
+		-426,
+		-378,
+		-315,
+		-260,
+		-228,
+		-220,
+		-221,
+		-212,
+		-179,
+		-125,
+		-67,
+		-24,
+		-3,
+		0,
+};
+int waveTabC[] = {
+		0,
+		523,
+		897,
+		1029,
+		915,
+		634,
+		315,
+		81,
+		0,
+		66,
+		210,
+		339,
+		379,
+		312,
+		178,
+		52,
+		0,
+		52,
+		178,
+		312,
+		379,
+		339,
+		210,
+		66,
+		0,
+		81,
+		315,
+		634,
+		915,
+		1029,
+		897,
+		523,
+		0,
+		-523,
+		-897,
+		-1029,
+		-915,
+		-634,
+		-315,
+		-81,
+		0,
+		-66,
+		-210,
+		-339,
+		-379,
+		-312,
+		-178,
+		-52,
+		0,
+		-52,
+		-178,
+		-312,
+		-379,
+		-339,
+		-210,
+		-66,
+		0,
+		-81,
+		-315,
+		-634,
+		-915,
+		-1029,
+		-897,
+		-523,
+		0,
+};
+int waveTabD[] = {
+		0,
+		0,
+		0,
+		0,
+		0,
+		0,
+		0,
+		0,
+		0,
+		0,
+		700,
+		700,
+		700,
+		700,
+		700,
+		700,
+		700,
+		700,
+		700,
+		700,
+		700,
+		700,
+		700,
+		700,
+		700,
+		700,
+		700,
+		700,
+		700,
+		700,
+		700,
+		-700,
+		-700,
+		-700,
+		-700,
+		-700,
+		-700,
+		-700,
+		-700,
+		-700,
+		-700,
+		-700,
+		-700,
+		-700,
+		-700,
+		-700,
+		-700,
+		-700,
+		-700,
+		-700,
+		-700,
+		-700,
+		-700,
+		-700,
+		0,
+		0,
+		0,
+		0,
+		0,
+		0,
+		0,
+		0,
+		0,
 		0,
 		0,
 };
@@ -464,18 +772,18 @@ void editSetup() {
 	  envPhaseRate = 0x100000 / (adcVal[0] + 0x100);
 	  break;
   case 1:
-//	  printf("%d\r\n", adcVal[1]);
+	  printf("%d\r\n", adcVal[1]);
 	  oscMix2 = ((adcVal[1] & 1023) >> 2);
 	  oscMix1 = 256 - oscMix2;
 	  if(adcVal[1] >= 3072) {
-		  modType = 2;
-		  waveTab1 = waveTabC;
-		  waveTab2 = waveTabC;
+		  modType = 1;
+		  waveTab1 = waveTabD;
+		  waveTab2 = waveTabD;
 	  }
 	  else if(adcVal[1] >= 2048) {
-		  modType = 1;
+		  modType = 0;
 		  waveTab1 = waveTabC;
-		  waveTab2 = waveTabC;
+		  waveTab2 = waveTabD;
 	  }
 	  else if(adcVal[1] >= 1024) {
 		  modType = 0;
@@ -519,20 +827,22 @@ void generate(int offset) {
 		for(int i = 0; i < VOICEMAX; ++i) {
 			if(envPhaseActive[i] < ENVPHASEMAX) {
 				int ph = oscPhaseActive[i];
-				int frac = (ph >> 7) & 0xf;
-				int idx = ph >> 11;
+				int frac = (ph >> 6) & 0xf;
+				int idx = ph >> 10;
 				int idxNext = idx + 1;
 				int w1 = waveTab1[idx] + (((waveTab1[idxNext] - waveTab1[idx]) * frac) >> 4);
 				int w2;
 				switch(modType) {
 				case 2:
 					modPhase = (modPhase + modDelta) & 0xffff;
-					int s = waveTab1[modPhase>>11];
+					int s = waveTab1[modPhase>>10];
 					w2 = (w1 * (s>>2)) >> 8;
 					w1 = (w1 * (modPhase>>8)) >> 8;
 					break;
 				case 1:
 					modPhase = (modPhase + modDelta) & 0xffff;
+					int ss = waveTab1[modPhase>>10];
+//					w2 = (w1 * (ss>>2)) >> 8;
 					w2 = (w1 * (modPhase>>8)) >> 8;
 					break;
 				case 0:
@@ -554,12 +864,14 @@ void generate(int offset) {
 					oscPhaseActive[i] -= 0x10000;
 				}
 				envPhaseActive[i] += envPhaseRate;
-				if(keyActiveQue[i] >= 0 && (envPhaseActive[i] >= ENVPHASEMAX || (dat >= 0 && datOld[i] < 0))) {
-					keyActive[i] = keyActiveQue[i];
-					envPhaseActive[i] = 0;
-					keyActiveQue[i] = -1;
+				if(keyActiveQue[i] >= 0) {
+					if((envPhaseActive[i] += 0x100000) >= ENVPHASEMAX) {
+						keyActive[i] = keyActiveQue[i];
+						envPhaseActive[i] = 0;
+						oscPhaseActive[i] = 0;
+						keyActiveQue[i] = -1;
+					}
 				}
-				datOld[i] = dat;
 			}
 		}
 		if(wavOut >= 0xf000) {
