@@ -146,24 +146,15 @@ uint8_t neoPixelBuffNone[16] = {
 int keyActive[VOICEMAX];
 int keyActiveQue[VOICEMAX];
 
-// KO 0-2 = PA11, PA8, PF1
+// KO 0-2 = PA12, PA8, PA11
 // KI 0-5 = GPIO PortB bit => xx5432x10
 int keyOut, keyInBits, keyInBitsOld;
 
 // Read KI 0-5 bits
-// EK001 PB x5432x10
-//#define KEYINBITS ((GPIOB->IDR & 0b11) | ((GPIOB->IDR >> 1) & 0b00111100))
 // EK002 PB 5432xx10
 #define KEYINBITS ((GPIOB->IDR & 0b11) | ((GPIOB->IDR >> 2) & 0b00111100))
 
 // KO 0-2 port & pin
-// EK001
-//#define KEYOUT0_PORT GPIOF
-//#define KEYOUT1_PORT GPIOA
-//#define KEYOUT2_PORT GPIOA
-//#define KEYOUT0_PIN GPIO_PIN_1
-//#define KEYOUT1_PIN GPIO_PIN_8
-//#define KEYOUT2_PIN GPIO_PIN_11
 //EK002
 #define KEYOUT0_PORT GPIOA
 #define KEYOUT1_PORT GPIOA
@@ -411,7 +402,7 @@ int disposeVoice(int key) {
 }
 // Assign new voice
 void assignVoice(int key) {
-	printf("key: %d\n",key);
+//	printf("key: %d\r\n",key);
 	int voice = disposeVoice(key);
 	if(envPhaseActive[voice] < ENVPHASEMAX) {
 		keyActiveQue[voice] = key;
@@ -473,7 +464,7 @@ void editSetup() {
 	  envPhaseRate = 0x100000 / (adcVal[0] + 0x100);
 	  break;
   case 1:
-//	  printf("%d\n", adcVal[1]);
+//	  printf("%d\r\n", adcVal[1]);
 	  oscMix2 = ((adcVal[1] & 1023) >> 2);
 	  oscMix1 = 256 - oscMix2;
 	  if(adcVal[1] >= 3072) {
@@ -554,7 +545,7 @@ void generate(int offset) {
 				int envFrac = (envPhaseActive[i] >> 16) & 0xf;
 				int envVal = envTab[envIdx];
 				envVal = envVal + ((envTab[envIdxNext] - envVal) * envFrac >> 4);
-				int dat = ((w * (envVal>>2)) >> 6);
+				int dat = ((w * (envVal>>2)) >> 5);
 				int ledidx = key2LedOut[keyActive[i]];
 				if(envVal > ledOut[ledidx])
 					ledOut[ledidx] = envVal;
@@ -562,26 +553,37 @@ void generate(int offset) {
 				if((oscPhaseActive[i] += oscDelta[keyActive[i]]) >= 0x10000) {
 					oscPhaseActive[i] -= 0x10000;
 				}
-				if(keyActiveQue[i] >= 0 && dat >= 0 && datOld[i] < 0) {
+				envPhaseActive[i] += envPhaseRate;
+				if(keyActiveQue[i] >= 0 && (envPhaseActive[i] >= ENVPHASEMAX || (dat >= 0 && datOld[i] < 0))) {
 					keyActive[i] = keyActiveQue[i];
 					envPhaseActive[i] = 0;
 					keyActiveQue[i] = -1;
 				}
 				datOld[i] = dat;
-				envPhaseActive[i] += envPhaseRate;
 			}
 		}
-		if(wavOut >= 0xf000)
+		if(wavOut >= 0xf000) {
 			wavOut = 0xf000;
-		if(wavOut < 0x1000)
+//			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_3, GPIO_PIN_SET);
+		}
+		else if(wavOut < 0x1000) {
 			wavOut = 0x1000;
+//			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_3, GPIO_PIN_SET);
+		}
+		else {
+//			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_3, GPIO_PIN_RESET);
+		}
 		outBuff[offset + j] = wavOut;
-		if(offset)
+		if(offset) {
 			outBuffAvail1 = 1;
-		else
+//			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_3, GPIO_PIN_SET);
+		}
+		else {
 			outBuffAvail0 = 1;
+//			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_3, GPIO_PIN_RESET);
+		}
 	}
-//	printf("%d\n",wavOutMax);
+//	printf("%d\r\n",wavOutMax);
 	for(int key = 0; key < 17; ++key)
 		oscDelta[key] = oscFreq[key] / oscFsTune;
 	neoPixelSetCol(3, ((ledOut[1]<<10)&0x0f0000) | ((ledOut[2]<<2)&0x000f00) | (ledOut[0] >> 3));
@@ -645,6 +647,7 @@ int main(void)
 
   /* USER CODE BEGIN Init */
   setbuf(stdout, NULL);
+
   for(int i = 0; i < OUTBUFFLEN; ++i) {
 	  outBuff[i] = 0x8000;
   }
@@ -657,7 +660,6 @@ int main(void)
   SystemClock_Config();
 
   /* USER CODE BEGIN SysInit */
-
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
@@ -670,6 +672,8 @@ int main(void)
   MX_TIM6_Init();
   MX_TIM7_Init();
   /* USER CODE BEGIN 2 */
+
+  printf(" USER CODE BEGIN 2\r\n");
 
   HAL_DAC_Start(&hdac1, DAC_CHANNEL_1);
   HAL_ADC_Start_DMA(&hadc1, (uint32_t *)adcVal, 3);
@@ -690,13 +694,16 @@ int main(void)
   neoPixelSetCol(3, 0x101010);
   HAL_DAC_Start_DMA(&hdac1, DAC_CHANNEL_1, (uint32_t*)outBuff, OUTBUFFLEN, DAC_ALIGN_12B_L);
 
-  printf("STM32 Initialized.\n");
+  printf("STM32 Initialized.\r\n");
 
 
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+
+  printf("BEGIN WHILE\r\n");
+
   while (1)
   {
     /* USER CODE END WHILE */
@@ -1098,6 +1105,9 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8|GPIO_PIN_11|GPIO_PIN_12, GPIO_PIN_RESET);
 
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_3, GPIO_PIN_RESET);
+
   /*Configure GPIO pin : PF1 */
   GPIO_InitStruct.Pin = GPIO_PIN_1;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
@@ -1105,10 +1115,10 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOF, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PB0 PB1 PB3 PB4
-                           PB5 PB6 */
-  GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_3|GPIO_PIN_4
-                          |GPIO_PIN_5|GPIO_PIN_6;
+  /*Configure GPIO pins : PB0 PB1 PB4 PB5
+                           PB6 */
+  GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_4|GPIO_PIN_5
+                          |GPIO_PIN_6;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
@@ -1119,6 +1129,13 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : PB3 */
+  GPIO_InitStruct.Pin = GPIO_PIN_3;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
 /* USER CODE BEGIN MX_GPIO_Init_2 */
 /* USER CODE END MX_GPIO_Init_2 */

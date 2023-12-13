@@ -97,25 +97,16 @@ STM32CubeIDE (STM32CubeMX) では STM32 のピンにペリフェラルの機能�
 
 ### Software Environment
 
-* 開発環境としてSTM32CubeIDE を用意してください。
+* 開発環境として STM32CubeIDE を用意してください。
   > [https://www.st.com/ja/development-tools/stm32cubeide.html](https://www.st.com/ja/development-tools/stm32cubeide.html)
 * PC と EK002 の左上にあるデバッグ用 USB ポート (Micro USB) を接続してソフトウェアの書き込みができます。
-* プロジェクトを作成するには、STM32CubeIDE の 'File' - 'New' - 'STM32Project from an existing STM32CubeMX Configuration file (*.ioc)' で `EK002.ioc` を選択してプロジェクトを新たに作成し、Core/Src/main.c をこの `main.c` で上書きしてしまうのが簡単だと思います。
+* プロジェクトを作成するには、STM32CubeIDE の 'File' - 'New' - 'STM32Project from an existing STM32CubeMX Configuration file (*.ioc)' で `EK002.ioc` を選択してプロジェクトを新たに作成し、`Core/Src/main.c` をこの `main.c` で上書きしてしまうのが簡単だと思います。
+* シリアルポートを `printf` デバッグ用に使用できます。USB を接続した PC で適当な端末ソフトを起動し、STLink Virtual COM Port に 115200 bps で接続してください。
 
----
-
-* Prepare STM32CubeIDE as a development environment.
-  > [https://www.st.com/ja/development-tools/stm32cubeide.html](https://www.st.com/ja/development-tools/stm32cubeide.html)
-* Software can be written by connecting a PC to the debugging USB port (Micro USB) on the top left of EK002.
-* To create a project, select `EK002.ioc` in 'File' - 'New' - 'STM32Project from an existing STM32CubeMX Configuration file (*.ioc)' in STM32CubeIDE, and create a new project. I think it is easy to overwrite /Src/main.c with this `main.c`.
 
 ### Pin Assign
 
 STM32 の各ピンの使用状況は以下の通りです。
-
----
-
-STM32 pins are used as follows.
 
 | Port  | STM32 Pin | Nucleo Pin | Function             |
 |:-----:|:---------:|:----------:|:--------------------:|
@@ -151,10 +142,6 @@ STM32 pins are used as follows.
 
 STM32 の タイマーや DMA 等のペリフェラルは以下のように使用されています。
 
----
-
-Peripherals such as timers and DMA are used as follows.
-
 | Timing  | Data Source    |   DMA    |Data Destination | 
 |:-------:|:--------------:|:--------:|:---------------:|
 | TIM6    | outBuff[]      | DMA1 Ch3 | DAC1 Ch1        |
@@ -173,9 +160,20 @@ POT1 は Volume ツマミとして回路的に固定されています。POT2-PO
 
 ### Generate
 
-音声信号は波形テーブル `waveTabA` - `waveTabC` の 3つのテーブルと固定周波数のリングモジュレータの信号から生成します。WaveForm (adcVal[1]) のツマミの値で次のように信号のミックスが変わります。
+信号の生成は `generate()` 関数で行い、1回の呼び出しで `outBuff[]` の半分のサイズ (前半または後半) を埋めます。
+
+同時発音可能なボイス数は 4 です。押された鍵盤から空いている (または重要度の低い) ボイスに割り当てています。  
+音声信号は波形テーブル `waveTabA` - `waveTabC` の 3つのテーブルと固定周波数のリングモジュレータの信号をミックスして生成します。WaveForm (adcVal[1]) のツマミの値で次のように信号のミックスが変わります。
 
 waveTabA (pure Sin) => waveTabB (Sawtooth) => waveTabC (more harmonix) => ring mod
+
+各テーブルは次のような波形になっています。
+
+![](images/waveTab.png)
+
+またエンベロープは envTab[] が表すカーブに従って発音開始から音量が下がっていきます。
+
+![](images/envTab.png)
 
 ### Output
 

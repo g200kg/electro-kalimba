@@ -3,6 +3,7 @@ work*/
 Test*/
 *.xlsx
 *.log
+!/EK002_Tables.xlsx
 
 # Blender
 *.blend1
