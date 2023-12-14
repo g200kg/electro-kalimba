@@ -26,6 +26,10 @@ ElectroKalimba EK-002
 
 ![](images/waveform.png)
 
+## Demo Movie  
+
+https://youtu.be/vXB684UsEok  
+[![](images/mov.png)](https://youtu.be/vXB684UsEok)
 
 ## About Kalimba
 
