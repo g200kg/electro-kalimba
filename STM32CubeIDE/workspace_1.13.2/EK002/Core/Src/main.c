@@ -171,10 +171,10 @@ int oscFsTune = OSCFSORIG;
 int oscDelta[17];
 int oscPhaseActive[VOICEMAX];
 int envPhaseActive[VOICEMAX];
-int oscMix1, oscMix2;
+int oscMix;
 int envPhaseRate;
 
-// Buzz Osc
+// Ring Osc
 int modPhase = 0;
 int modDelta = 2555;
 int modType = 0;
@@ -206,153 +206,6 @@ int oscFreq[17] = {
 };
 
 // Waveforms
-
-/*
-int waveTabA[] = {
-		0,
-		195,
-		383,
-		556,
-		707,
-		831,
-		924,
-		981,
-		1000,
-		981,
-		924,
-		831,
-		707,
-		556,
-		383,
-		195,
-		0,
-		-195,
-		-383,
-		-556,
-		-707,
-		-831,
-		-924,
-		-981,
-		-1000,
-		-981,
-		-924,
-		-831,
-		-707,
-		-556,
-		-383,
-		-195,
-		0,
-};
-int waveTabB[] = {
-		0,
-		24,
-		125,
-		212,
-		220,
-		260,
-		378,
-		446,
-		434,
-		498,
-		644,
-		676,
-		620,
-		752,
-		991,
-		800,
-		0,
-		-800,
-		-991,
-		-752,
-		-620,
-		-676,
-		-644,
-		-498,
-		-434,
-		-446,
-		-378,
-		-260,
-		-220,
-		-212,
-		-125,
-		-24,
-		0,
-};
-
-int waveTabC[] = {
-		0,
-		835,
-		1007,
-		400,
-		-471,
-		-928,
-		-706,
-		-150,
-		133,
-		-150,
-		-706,
-		-928,
-		-471,
-		400,
-		1007,
-		835,
-		0,
-		-835,
-		-1007,
-		-400,
-		471,
-		928,
-		706,
-		150,
-		-133,
-		150,
-		706,
-		928,
-		471,
-		-400,
-		-1007,
-		-835,
-		0,
-
-};
-
-
-int waveTabC[] = {
-		0,
-		941,
-		672,
-		-342,
-		-964,
-		-872,
-		-460,
-		-120,
-		0,
-		-120,
-		-460,
-		-872,
-		-964,
-		-342,
-		672,
-		941,
-		-941,
-		-672,
-		342,
-		964,
-		872,
-		460,
-		120,
-		0,
-		120,
-		460,
-		872,
-		964,
-		342,
-		-672,
-		-941,
-		0,
-		0,
-};
-*/
 
 int waveTabA[] = {
 		0,
@@ -764,17 +617,15 @@ void scanKeys() {
 // Edit with pot parameters
 void editSetup() {
   static int editstage=0;
-  if(++editstage > 10) {
+  if(++editstage > 2) {
 	  editstage = 0;
   }
   switch(editstage) {
-  case 0:
+  case 0:				// setup Sustain param
 	  envPhaseRate = 0x100000 / (adcVal[0] + 0x100);
 	  break;
-  case 1:
-	  printf("%d\r\n", adcVal[1]);
-	  oscMix2 = ((adcVal[1] & 1023) >> 2);
-	  oscMix1 = 256 - oscMix2;
+  case 1:				// setup Waveform param
+	  oscMix = ((adcVal[1] & 1023) >> 2);
 	  if(adcVal[1] >= 3072) {
 		  modType = 1;
 		  waveTab1 = waveTabD;
@@ -796,14 +647,14 @@ void editSetup() {
 		  waveTab2 = waveTabB;
 	  }
 	  break;
-  case 2:
+  case 2:				// setup Tuning param
 	  int detune = (adcVal[2] & 0xfff) - 2048;
 	  oscFsTune = OSCFSORIG - detune;
 	  break;
   }
 }
 // Create the timings for keyscan / editparameters
-void gpioInterval() {
+void scanInterval() {
 	// 1kHz Interval
 	static int cntKeyScan = 0;
 	static int cntEditParam = 0;
@@ -819,53 +670,45 @@ void gpioInterval() {
 // Generate output signals
 //  fill half the buffer with the signals from offset
 void generate(int offset) {
-	int wavOut;
-//	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_12, GPIO_PIN_SET);
+	int sumVoiceData;
 	ledOut[0] = ledOut[1] = ledOut[2] = 0;
-	for(int j = 0; j < OUTBUFFLENHALF; ++j) {
-		wavOut = 0x8000;
+	for(int key = 0; key < 17; ++key)
+		oscDelta[key] = oscFreq[key] / oscFsTune;
+	for(int j = 0; j < OUTBUFFLENHALF; ++j) {										// Fill half the buffer
+		sumVoiceData = 0x8000;
 		for(int i = 0; i < VOICEMAX; ++i) {
-			if(envPhaseActive[i] < ENVPHASEMAX) {
+			if(envPhaseActive[i] < ENVPHASEMAX) {									// Sound generating
 				int ph = oscPhaseActive[i];
 				int frac = (ph >> 6) & 0xf;
 				int idx = ph >> 10;
 				int idxNext = idx + 1;
-				int w1 = waveTab1[idx] + (((waveTab1[idxNext] - waveTab1[idx]) * frac) >> 4);
-				int w2;
-				switch(modType) {
-				case 2:
+				int wave1 = waveTab1[idx] + (((waveTab1[idxNext] - waveTab1[idx]) * frac) >> 4);
+				int wave2;
+				if(modType) {														// If use RingMod
 					modPhase = (modPhase + modDelta) & 0xffff;
-					int s = waveTab1[modPhase>>10];
-					w2 = (w1 * (s>>2)) >> 8;
-					w1 = (w1 * (modPhase>>8)) >> 8;
-					break;
-				case 1:
-					modPhase = (modPhase + modDelta) & 0xffff;
-					int ss = waveTab1[modPhase>>10];
-//					w2 = (w1 * (ss>>2)) >> 8;
-					w2 = (w1 * (modPhase>>8)) >> 8;
-					break;
-				case 0:
-					w2 = waveTab2[idx] + (((waveTab2[idxNext] - waveTab2[idx]) * frac) >> 4);
-					break;
+					int ringOsc = waveTab1[modPhase>>10];
+					wave2 = (wave1 * ringOsc) >> 10;
 				}
-				int w = w1 + (((w2 - w1) * oscMix2) >> 8);
+				else {
+					wave2 = waveTab2[idx] + (((waveTab2[idxNext] - waveTab2[idx]) * frac) >> 4);
+				}
+				int wave = wave1 + (((wave2 - wave1) * oscMix) >> 8);				// Mix two waveform
 				int envIdx = (envPhaseActive[i] >> 20);
 				int envIdxNext = envIdx + 1;
 				int envFrac = (envPhaseActive[i] >> 16) & 0xf;
 				int envVal = envTab[envIdx];
-				envVal = envVal + ((envTab[envIdxNext] - envVal) * envFrac >> 4);
-				int dat = ((w * (envVal>>2)) >> 5);
+				envVal = envVal + ((envTab[envIdxNext] - envVal) * envFrac >> 4);	// Envelope value
+				int voiceData = ((wave * (envVal>>2)) >> 5);
 				int ledidx = key2LedOut[keyActive[i]];
 				if(envVal > ledOut[ledidx])
 					ledOut[ledidx] = envVal;
-				wavOut += dat;
+				sumVoiceData += voiceData;
 				if((oscPhaseActive[i] += oscDelta[keyActive[i]]) >= 0x10000) {
 					oscPhaseActive[i] -= 0x10000;
 				}
 				envPhaseActive[i] += envPhaseRate;
-				if(keyActiveQue[i] >= 0) {
-					if((envPhaseActive[i] += 0x100000) >= ENVPHASEMAX) {
+				if(keyActiveQue[i] >= 0) {											// If the next key is in the queue
+					if((envPhaseActive[i] += 0x100000) >= ENVPHASEMAX) {  			// hasten the envelope and reduce the volume
 						keyActive[i] = keyActiveQue[i];
 						envPhaseActive[i] = 0;
 						oscPhaseActive[i] = 0;
@@ -874,18 +717,18 @@ void generate(int offset) {
 				}
 			}
 		}
-		if(wavOut >= 0xf000) {
-			wavOut = 0xf000;
+		if(sumVoiceData >= 0xf000) {
+			sumVoiceData = 0xf000;
 //			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_3, GPIO_PIN_SET);
 		}
-		else if(wavOut < 0x1000) {
-			wavOut = 0x1000;
+		else if(sumVoiceData < 0x1000) {
+			sumVoiceData = 0x1000;
 //			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_3, GPIO_PIN_SET);
 		}
 		else {
 //			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_3, GPIO_PIN_RESET);
 		}
-		outBuff[offset + j] = wavOut;
+		outBuff[offset + j] = sumVoiceData;
 		if(offset) {
 			outBuffAvail1 = 1;
 //			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_3, GPIO_PIN_SET);
@@ -895,12 +738,7 @@ void generate(int offset) {
 //			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_3, GPIO_PIN_RESET);
 		}
 	}
-//	printf("%d\r\n",wavOutMax);
-	for(int key = 0; key < 17; ++key)
-		oscDelta[key] = oscFreq[key] / oscFsTune;
 	neoPixelSetCol(3, ((ledOut[1]<<10)&0x0f0000) | ((ledOut[2]<<2)&0x000f00) | (ledOut[0] >> 3));
-//	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_12, GPIO_PIN_RESET);
-
 }
 
 //###### Callback #######################
@@ -921,7 +759,7 @@ void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim) {
 //###### TIM7 callback
 void  HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
 	if(htim->Instance == TIM7) {
-	  gpioInterval();
+	  scanInterval();
 	}
 }
 //###### DAC callback End of buffer
