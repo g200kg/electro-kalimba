@@ -174,10 +174,10 @@ POT1 は Volume ツマミとして回路的に固定されています。POT2-PO
 |:--------:|:-----------------------------------------------:|
 |     0 => 1024 | waveTabA (Sine) => waveTabB (Sawtooth)     |
 |  1024 => 2048 | waveTabB (Sawtooth) => waveTabC (Pulse)    |
-|  2048 => 3072 | waveTabC (Pulse) => waveTabD (Square-like) |
-|  3072 => 4096 | waveTabD (Square-like) => RingMod          |
+|  2048 => 3072 | waveTabC (Pulse) => waveTabD (Square)      |
+|  3072 => 4096 | waveTabD (Square) => RingMod               |
 
-waveTabA (pure Sin) => waveTabB (Sawtooth) => waveTabC (Pulse) => => waveTabD (Square-like) => ring mod
+waveTabA (pure Sin) => waveTabB (Sawtooth) => waveTabC (Pulse) => => waveTabD (Square) => ring mod
 
 各テーブルは次のような波形になっています。
 
