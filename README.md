@@ -55,10 +55,11 @@ Blender ディレクトリには "Blender" 用の筐体の 3D データが収め
 
 * Case_Top : 鍵盤部と本体上部
 * Case_Mid : 本体下部
+* Case_SP_Ring : スピーカー前面のカバー
 * Case_Bottom : 底面
-* Case_SPCap : スピーカー突起部のカバー
+* Case_SP_Cap : スピーカー底部のカバー
 
-全てのパーツはサポートなし、あるいはほぼサポートなしで印刷できま\す。Case_Top、Case_Mid は印刷時には回転して上下を逆にしてください。
+全てのパーツはサポートなし、あるいはほぼサポートなしで印刷できま\す。Case_Top、Case_Mid、Case_SP_Ring は印刷時には回転して上下を逆にしてください。
 Creality K1 でブリム、ラフトなしで印刷を確認しています。
 
 設計データ上は "cm" 単位で数値指定しています。印刷時に必要に応じてスケーリングしてください。
@@ -195,6 +196,16 @@ waveTabA (pure Sin) => waveTabB (Sawtooth) => waveTabC (Pulse) => => waveTabD (S
 
 NeoPixel はシリアル信号で駆動するフルカラー LED です。ソフトウェアだけで制御信号のタイミングを作るのは困難ですのでタイマー (TIM17) の PWM 生成機能で
 信号を作っています。`neoPixelBuff[]` には PWM のパルス幅を表すバイトデータの配列があり、DMA でタイマーに付随する PWM 発生機能に順次送る事により、4 つの NeoPixel LED を制御しています。
+
+### Actual Current Consumption Test
+
+800mAh 9V 電池使用時の電流測定と動作時間見積
+
+| Current      | Condition          | Estimated operating time<br/>(800mAh Batt) |  
+|:------------:|:------------------:|:------------------------:|
+| 80mA - 100mA | Lineout            | 10h - 8h                 |
+| 90mA - 120mA | Speaker Voluem Max | 8.9h -  6.7h             |
+
 
 # License
 
