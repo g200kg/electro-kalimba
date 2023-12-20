@@ -148,7 +148,10 @@ int keyActiveQue[VOICEMAX];
 
 // KO 0-2 = PA12, PA8, PA11
 // KI 0-5 = GPIO PortB bit => 5432xx10
-int keyOut, keyInBits, keyInBitsOld;
+int keyOut;
+int keyInBits = 0;
+int keyInBitsOld1 = 0;
+int keyInBitsOld2 = 0;
 
 // Read KI 0-5 bits
 // EK002 PB 5432xx10
@@ -589,14 +592,15 @@ void scanKeys() {
 	keyInBits = (keyInBits << 6) | KEYINBITS;						// collect key status
 	neoPixelSetCol(keyOut, (keyInBits & 0b111111) ? 0x000010:0);
 	if(--keyOut < 0) {
-		int xor = (keyInBits ^ keyInBitsOld) & keyInBits;			// xor : keyin rising edge for all keys
-		for(int n = 0;n < 17; ++n, xor >>= 1) {
-			if(xor & 1) {
+		int keyInBitsNew = keyInBits & keyInBitsOld1 & keyInBitsOld2;
+		for(int n = 0;n < 17; ++n, keyInBitsNew >>= 1) {
+			if(keyInBitsNew & 1) {
 				assignVoice(n);
 			}
 		}
 		keyOut = 2;
-		keyInBitsOld = keyInBits;
+		keyInBitsOld2 = keyInBitsOld1;
+		keyInBitsOld1 = ~keyInBits;
 		keyInBits = 0;
 	}
     switch(keyOut) {												// next scan (KO2 => KO1 => KO0)
