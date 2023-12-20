@@ -4,12 +4,24 @@ ElectroKalimba EK-002
 
 ![](images/case_0.jpeg)
 
-# Overview
+## About Kalimba
 
-これは楽器、"電子カリンバ" の設計データです。
-回路図、ソフトウェアのソースコード、機構設計の 3D データを含みます。
+カリンバはアフリカの民族楽器で、板の上に並んだ金属片を指ではじいて音を出す「親指ピアノ」などとも呼ばれるシンプルな楽器です。国や地方によって様々な様式や名前のものがありますが、現在一般的には 17 鍵のものが「カリンバ」として流通しています。  
+
+キーの配置は中心が一番低い音程になっていて左右交互に端に行くにしたがって高い音になっていきます。音程はピアノで言えば白鍵のみしかなく、黒鍵の半音に相当する鍵盤はありません。  
+
+現在のカリンバは金属片が振動するほぼサイン波の澄んだオルゴールのような音が鳴りますが、元々のカリンバの使い方としては金属片に少し針金を巻きつけるなどによってジージーと鳴るノイズを加えたりします。
 
 ## Usage
+
+普通のカリンバのように演奏できますが、普通のカリンバがキーをはじいて音を出すのに対し、この電子カリンバはキーを押し込んだ時に音を出しますので、演奏の感覚は微妙に異なるかも知れません。
+
+LineOut 端子に何も接続していない場合は内蔵スピーカーから音がでます。LineOut 端子使用時は内蔵スピーカーはミュートされます。
+
+LineOut 端子には 2 極(モノラル)または 3 極 (ステレオ) のミニプラグを接続してください。4 極以上のプラグを接続した場合は正常に動作しない場合があります。
+
+電池は充電式です。充電は本体手前にある Charge MicroUSB 端子で行います。
+本体左上にある Debug MicroUSB は内部で使用している Nucleo ボードの USB コネクタで、プログラムの書き込み/デバッグを行う際に使用します。
 
 | 端子            | 説明                              |
 |:---------------:|:---------------------------------:|
@@ -22,8 +34,6 @@ ElectroKalimba EK-002
 | Volume          | 音量設定                          |
 | Line Out        | ライン出力                        |
 
-
-
 ![](images/waveform.png)
 
 ## Demo Movie  
@@ -31,14 +41,10 @@ ElectroKalimba EK-002
 https://youtu.be/vXB684UsEok  
 [![](images/mov.png)](https://youtu.be/vXB684UsEok)
 
-## About Kalimba
+# Repository
 
-カリンバはアフリカの民族楽器で、板の上に並んだ金属片を指ではじいて音を出す「親指ピアノ」などとも呼ばれるシンプルな楽器です。国や地方によって様々な様式や名前のものがありますが、現在一般的には 17 鍵のものが「カリンバ」として楽器の入門者向けとして流通しています。  
-
-キーの配置は中心が一番低い音程になっていて左右交互に端に行くにしたがって高い音になっていきます。音程はピアノで言えば白鍵のみで黒鍵の半音に相当する鍵盤はありません。  
-
-現在のカリンバは金属片が振動するほぼサイン波の澄んだオルゴールのような音が鳴りますが、元々のカリンバの使い方としては金属片に少し針金を巻きつけるなどによってジージーと鳴るノイズを加えたりします。
-
+このリポジトリは楽器、"電子カリンバ" の設計データです。
+回路図、ソフトウェアのソースコード、機構設計の 3D データを含みます。
 
 # Directories
 
@@ -79,7 +85,6 @@ PDF 化した回路図 と KiCad 7.0.2 用のファイルです。
 Schametic PDF and files for KiCad 7.0.2.
 
 * EK002-pcb.pdf Schematic PDF.
-* EK002.kicad_pro KiCad Project
 * EK002.kicad_sch Kicad Schematic
 * EK002.kicad_pcb Kicad Artwork
 
@@ -105,7 +110,7 @@ STM32CubeIDE (STM32CubeMX) では STM32 のピンにペリフェラルの機能�
 * 開発環境として STM32CubeIDE を用意してください。
   > [https://www.st.com/ja/development-tools/stm32cubeide.html](https://www.st.com/ja/development-tools/stm32cubeide.html)
 * PC と EK002 の左上にあるデバッグ用 USB ポート (Micro USB) を接続してソフトウェアの書き込みができます。
-* プロジェクトを作成するには、STM32CubeIDE の 'File' - 'New' - 'STM32Project from an existing STM32CubeMX Configuration file (*.ioc)' で `EK002.ioc` を選択してプロジェクトを新たに作成し、`Core/Src/main.c` をこの `main.c` で上書きしてしまうのが簡単だと思います。
+* プロジェクトのターゲットは "Nucleo STM32F303K8"　です。プロジェクトを作成するには、STM32CubeIDE の 'File' - 'New' - 'STM32Project from an existing STM32CubeMX Configuration file (*.ioc)' で `EK002.ioc` を選択してプロジェクトを新たに作成し、`Core/Src/main.c` をこの `main.c` で上書きしてしまうのが簡単だと思います。
 * シリアルポートを `printf` デバッグ用に使用できます。USB を接続した PC で適当な端末ソフトを起動し、STLink Virtual COM Port に 115200 bps で接続してください。
 
 
