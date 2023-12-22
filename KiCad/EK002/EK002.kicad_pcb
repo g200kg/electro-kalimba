@@ -6744,7 +6744,7 @@
   (gr_text "-" (at 108.4 59.78) (layer "B.SilkS") (tstamp e03ea1a1-a5d6-4895-bb8c-a0c313dd34cb)
     (effects (font (size 1 1) (thickness 0.15)) (justify mirror))
   )
-  (gr_text locked "EK-002 R2.0.1" (at 147.4 95.78) (layer "F.SilkS") (tstamp 84b7a6ff-2ba9-44d5-99df-d518ed12d24d)
+  (gr_text locked "EK-002" (at 147.4 95.78) (layer "F.SilkS") (tstamp 84b7a6ff-2ba9-44d5-99df-d518ed12d24d)
     (effects (font (size 1.5 1.5) (thickness 0.3)))
   )
   (dimension (type aligned) (layer "F.Fab") (tstamp 0940b0e1-e3b9-486c-b827-863981b28773)
